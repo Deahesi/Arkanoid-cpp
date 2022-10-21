@@ -32,23 +32,29 @@ struct BALL {
 PLAYER player;
 BALL ball;
 
-unsigned short level;
+short level;
 HANDLE wHnd;
 HANDLE rHnd;
 
+string map[HEIGHT];
+fstream stream;
+ifstream is;
 
-string get_level(unsigned short level) {
-    ifstream fs;
-    fs.open("maps/" + to_string(level) + ".txt");
-    if (fs.is_open()) {
-        string map;
-        fs >> map;
-        fs.close();
-        return map;
+void get_level(string map[HEIGHT], unsigned short level) {
+    is.open("maps/" + to_string(level) + ".txt");
+    if (is.is_open()) {
+        short y = 0;
+        while (!is.eof()) {
+            getline(is, ::map[y]);
+            y++;
+        }
+        is.close();
     }
     else {
-        return "";
+        is.close();
     }
+    
+    //cout << ::map[0][50];
 }
 
 void fillboard(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT]) {
@@ -72,7 +78,33 @@ void refreshframe(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT]) {
     fillboard(consolebuffer);
 }
 
-void setup() {
+bool setup() {
+    stream.open("save.txt", fstream::in | fstream::out | fstream::app);
+    if (!stream.is_open()) {
+        stream << 1;
+    }
+    char lvl_str[3];
+    stream >> lvl_str;
+    
+    level = atoi(lvl_str);
+    stream.close();
+
+
+    get_level(map, level);
+    //cout << sizeof(map) / sizeof(char*);
+    //stream.open("maps/" + to_string(level) + ".txt", fstream::in | fstream::app);
+
+    //if (!stream.is_open()) {
+    //    return false;
+    //}
+
+    //stream.seekg(0, stream.end);
+    //int length = stream.tellg();
+    //stream.seekg(0, stream.beg);
+
+    //stream.read(map, length);
+    //stream.close();
+
     player.vx = 0;
     player.width = PLAYER_WIDTH;
     player.x = (WIDTH / 2) - (PLAYER_WIDTH / 2);
@@ -81,6 +113,13 @@ void setup() {
     ball.vy = BALL_SPEED;
     ball.x = (WIDTH / 2);
     ball.y = (HEIGHT / 2) + 10;
+
+    return true;
+}
+
+void exit() {
+    stream.open("save.txt", fstream::in);
+    stream << level;
 }
 
 void render(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT], SMALL_RECT* windowSize) {
@@ -95,6 +134,14 @@ void render(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT], SMALL_RECT* windowSize) {
         (*consolebuffer)[short(player.x) + i + short(player.y) * HEIGHT].Char.AsciiChar = 254;
         (*consolebuffer)[short(player.x) + i + short(player.y) * HEIGHT].Attributes = FOREGROUND_RED | BACKGROUND_BLUE;
     }
+
+    for (short y = 0; y < (sizeof(map) / sizeof(string)) / 10; y++) {
+        for (short x = 0; x < map[y].size(); x++) {
+            (*consolebuffer)[x + 1 + (y + 1) * HEIGHT].Char.AsciiChar = map[y][x];
+            (*consolebuffer)[x + 1 + (y + 1) * HEIGHT].Attributes = FOREGROUND_RED | BACKGROUND_BLUE;
+        }
+    }
+
 
     WriteConsoleOutputA(wHnd, *consolebuffer, COORD{ WIDTH, HEIGHT }, COORD{ 0, 0 }, windowSize);
 }
@@ -114,11 +161,11 @@ void input() {
             if (eventBuffer[i].EventType == KEY_EVENT) {
                 if (eventBuffer[i].Event.KeyEvent.bKeyDown) {
 
-                    if (eventBuffer[i].Event.KeyEvent.wVirtualKeyCode == VK_LEFT) {
+                    if (eventBuffer[i].Event.KeyEvent.wVirtualKeyCode == VK_LEFT && player.x > 1) {
                         player.vx = -SPEED * ACCELERATION;
                         player.x += player.vx;
                     }
-                    else if (eventBuffer[i].Event.KeyEvent.wVirtualKeyCode == VK_RIGHT) {
+                    else if (eventBuffer[i].Event.KeyEvent.wVirtualKeyCode == VK_RIGHT && player.x + player.width < WIDTH - 1) {
                         player.vx = SPEED * ACCELERATION;
                         player.x += player.vx;
                     }
@@ -160,14 +207,19 @@ int _tmain(int argc, _TCHAR* argv[]) {
     CHAR_INFO consolebuffer[WIDTH * HEIGHT];
     refreshframe(&consolebuffer);
 
+
+ 
     COORD startPos = { 0,0 };
 
     WriteConsoleOutputA(wHnd, consolebuffer, bufferSize, startPos, &windowSize);
 
-    setup();
-    while (true) {
-        render(&consolebuffer, &windowSize);
-        logic();
-        input();
+    bool set = setup();
+    if (set) {
+        while (true) {
+            render(&consolebuffer, &windowSize);
+            logic();
+            input();
+        }
     }
+
 }
