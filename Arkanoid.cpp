@@ -37,6 +37,8 @@ HANDLE wHnd;
 HANDLE rHnd;
 
 string map[HEIGHT];
+bool beated[HEIGHT][WIDTH];
+
 fstream stream;
 ifstream is;
 
@@ -91,19 +93,7 @@ bool setup() {
 
 
     get_level(map, level);
-    //cout << sizeof(map) / sizeof(char*);
-    //stream.open("maps/" + to_string(level) + ".txt", fstream::in | fstream::app);
 
-    //if (!stream.is_open()) {
-    //    return false;
-    //}
-
-    //stream.seekg(0, stream.end);
-    //int length = stream.tellg();
-    //stream.seekg(0, stream.beg);
-
-    //stream.read(map, length);
-    //stream.close();
 
     player.vx = 0;
     player.width = PLAYER_WIDTH;
@@ -120,6 +110,7 @@ bool setup() {
 void exit() {
     stream.open("save.txt", fstream::in);
     stream << level;
+    stream.close();
 }
 
 void render(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT], SMALL_RECT* windowSize) {
@@ -137,8 +128,10 @@ void render(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT], SMALL_RECT* windowSize) {
 
     for (short y = 0; y < (sizeof(map) / sizeof(string)) / 10; y++) {
         for (short x = 0; x < map[y].size(); x++) {
-            (*consolebuffer)[x + 1 + (y + 1) * HEIGHT].Char.AsciiChar = map[y][x];
-            (*consolebuffer)[x + 1 + (y + 1) * HEIGHT].Attributes = FOREGROUND_RED | BACKGROUND_BLUE;
+            if (!beated[y][x]) {
+                (*consolebuffer)[x + 1 + (y + 1) * HEIGHT].Char.AsciiChar = map[y][x];
+                (*consolebuffer)[x + 1 + (y + 1) * HEIGHT].Attributes = FOREGROUND_RED | BACKGROUND_BLUE;
+            }
         }
     }
 
@@ -177,14 +170,15 @@ void input() {
     }
 }
 
-void logic() {
+void logic(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT]) {
     if ((ball.x + ball.vx) >= (WIDTH - 1) || (ball.x + ball.vx) <= 0) {
         ball.vx = -ball.vx;
-    }
-    if ((ball.y + ball.vy) >= (HEIGHT - 1) || (ball.y + ball.vy) <= 0) {
+    } else if ((ball.y + ball.vy) >= (HEIGHT - 1) || (ball.y + ball.vy) <= 0) {
         ball.vy = -ball.vy;
-    }
-    if ((ball.y + ball.vy) >= player.y && (((ball.x + ball.vx) >= player.x) && (ball.x + ball.vx) <= (player.x + player.width))) {
+    } else if ((ball.y + ball.vy) >= player.y && (((ball.x + ball.vx) >= player.x) && (ball.x + ball.vx) <= (player.x + player.width))) {
+        ball.vy = -ball.vy;
+    } else if ((*consolebuffer)[short(ball.x + 1) + (short(ball.y + 1)) * HEIGHT].Char.AsciiChar == '#') {
+        beated[(short(ball.y))][short(ball.x)] = true;
         ball.vy = -ball.vy;
     }
 
@@ -217,7 +211,7 @@ int _tmain(int argc, _TCHAR* argv[]) {
     if (set) {
         while (true) {
             render(&consolebuffer, &windowSize);
-            logic();
+            logic(&consolebuffer);
             input();
         }
     }
