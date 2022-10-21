@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <Tchar.h>
 #include <cmath>
+#include <vector>
 
 #define WIDTH 50
 #define HEIGHT 50
@@ -28,9 +29,17 @@ struct BALL {
     float vy;
 };
 
+struct MODIFICATOR {
+    float x;
+    float y;
+    float vy;
+    int mod;
+};
+
 
 PLAYER player;
-BALL ball;
+vector<BALL> balls (2);
+vector<MODIFICATOR> modificators;
 
 short level;
 HANDLE wHnd;
@@ -55,8 +64,6 @@ void get_level(string map[HEIGHT], unsigned short level) {
     else {
         is.close();
     }
-    
-    //cout << ::map[0][50];
 }
 
 void fillboard(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT]) {
@@ -99,10 +106,15 @@ bool setup() {
     player.width = PLAYER_WIDTH;
     player.x = (WIDTH / 2) - (PLAYER_WIDTH / 2);
 
-    ball.vx = BALL_SPEED;
-    ball.vy = BALL_SPEED;
-    ball.x = (WIDTH / 2);
-    ball.y = (HEIGHT / 2) + 10;
+    balls[0].vx = BALL_SPEED;
+    balls[0].vy = BALL_SPEED;
+    balls[0].x = (WIDTH / 2);
+    balls[0].y = (HEIGHT / 2) + 10;
+
+    balls[1].vx = BALL_SPEED;
+    balls[1].vy = BALL_SPEED;
+    balls[1].x = (WIDTH / 2) - 10;
+    balls[1].y = (HEIGHT / 2) + 10;
 
     return true;
 }
@@ -117,8 +129,18 @@ void render(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT], SMALL_RECT* windowSize) {
     refreshframe(consolebuffer);
 
     //ШАРИК НА ЭКРАН
-    (*consolebuffer)[short(ball.x) + short(ball.y) * HEIGHT].Char.AsciiChar = 64;
-    (*consolebuffer)[short(ball.x) + short(ball.y) * HEIGHT].Attributes = BACKGROUND_GREEN;
+    for (short i = 0; i < balls.size(); i++) {
+        (*consolebuffer)[short(balls[i].x) + short(balls[i].y) * HEIGHT].Char.AsciiChar = 64;
+        (*consolebuffer)[short(balls[i].x) + short(balls[i].y) * HEIGHT].Attributes = BACKGROUND_GREEN;
+    }
+
+
+    //МОДИФИКАТОРЫ
+    for (short i = 0; i < modificators.size(); i++) {
+        (*consolebuffer)[short(modificators[i].x) + short(modificators[i].y) * HEIGHT].Char.AsciiChar = '+';
+        (*consolebuffer)[short(modificators[i].x) + short(modificators[i].y) * HEIGHT].Attributes = BACKGROUND_RED;
+    }
+
 
 
     for (short i = 0; i < player.width; i++) {
@@ -171,19 +193,43 @@ void input() {
 }
 
 void logic(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT]) {
-    if ((ball.x + ball.vx) >= (WIDTH - 1) || (ball.x + ball.vx) <= 0) {
-        ball.vx = -ball.vx;
-    } else if ((ball.y + ball.vy) >= (HEIGHT - 1) || (ball.y + ball.vy) <= 0) {
-        ball.vy = -ball.vy;
-    } else if ((ball.y + ball.vy) >= player.y && (((ball.x + ball.vx) >= player.x) && (ball.x + ball.vx) <= (player.x + player.width))) {
-        ball.vy = -ball.vy;
-    } else if ((*consolebuffer)[short(ball.x + 1) + (short(ball.y + 1)) * HEIGHT].Char.AsciiChar == '#') {
-        beated[(short(ball.y))][short(ball.x)] = true;
-        ball.vy = -ball.vy;
+    for (short i = 0; i < balls.size(); i++) {
+        if ((balls[i].x + balls[i].vx) >= (WIDTH - 1) || (balls[i].x + balls[i].vx) <= 0) {
+            balls[i].vx = -balls[i].vx;
+        }
+        else if ((balls[i].y + balls[i].vy) >= (HEIGHT - 1) || (balls[i].y + balls[i].vy) <= 0) {
+            balls[i].vy = -balls[i].vy;
+        }
+        else if ((balls[i].y + balls[i].vy) >= player.y && (((balls[i].x + balls[i].vx) >= player.x) && (balls[i].x + balls[i].vx) <= (player.x + player.width))) {
+            balls[i].vy = -balls[i].vy;
+        }
+        else if ((*consolebuffer)[short(balls[i].x + 1) + (short(balls[i].y + 1)) * HEIGHT].Char.AsciiChar == '#') {
+            beated[(short(balls[i].y))][short(balls[i].x)] = true;
+            balls[i].vy = -balls[i].vy;
+            if (modificators.size() < 50) {
+                modificators.push_back({ balls[i].x, balls[i].y, 0.02, rand() % 3 + 1 });
+            }
+        }
+
+        balls[i].x += balls[i].vx;
+        balls[i].y += balls[i].vy;
     }
 
-    ball.x += ball.vx;
-    ball.y += ball.vy;
+    for (short i = 0; i < modificators.size(); i++) {
+        if ((modificators[i].y + modificators[i].vy) >= player.y && ((modificators[i].x >= player.x) && (modificators[i].x <= (player.x + player.width)))) {
+            short size = balls.size();
+            if (size + size * modificators[i].mod <= 99) {
+                for (short j = size; j < size * modificators[i].mod; j++) {
+                    balls.push_back(BALL { float(rand() % (WIDTH - 1) + 1), float(rand() % (HEIGHT - 10) + 10), BALL_SPEED, BALL_SPEED });
+                }
+            }
+        }
+
+        modificators[i].y += modificators[i].vy;
+        if (modificators[i].y > player.y) {
+            modificators.erase(modificators.begin() + i);
+        }
+    }
 }
 
 
