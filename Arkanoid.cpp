@@ -36,6 +36,11 @@ struct MODIFICATOR {
     int mod;
 };
 
+struct LEVEL {
+    string text;
+    bool hover;
+};
+
 struct MENUBTN {
     short x;
     short y;
@@ -47,12 +52,14 @@ short choosedbtn = 0;
 PLAYER player;
 vector<BALL> balls (0);
 vector<MODIFICATOR> modificators;
-vector<short> levels;
+vector<LEVEL> levels;
+short choosedbtnlevel = 0;
 
 short level;
 bool menu = false;
 bool changelevel = false;
 bool exitstate = false;
+bool choseimportantlevel = false;
 HANDLE wHnd;
 HANDLE rHnd;
 
@@ -91,19 +98,22 @@ void fillboard(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT]) {
     }
 }
 
-vector<TCHAR*> getfiles() {
-    int count = 1;
-    vector<TCHAR*> files;
-    while (hFind != INVALID_HANDLE_VALUE && (count++ <= 10)) {
-        char buffer[10] = ".txt";
-        _itoa_s(count, buffer, 10); //Чёт тут тупанул
-        strcat_s(buffer, ".txt");
-        LPWSTR name = new wchar_t[100];
-        mbtowc(name, buffer, strlen(buffer));
-        hFind = FindFirstFile(name, &FindFileData);
-        files.push_back(FindFileData.cFileName);
+vector<LEVEL> getfiles() {
+    int count = 0;
+    vector<LEVEL> files;
+    while (++count < 11) {
+        is.open("maps/" + to_string(count) + ".txt");
+        if (is.is_open()) {
+            files.push_back({ to_string(count) + ".txt", false });
+        }
+        else {
+            is.close();
+            files[0].hover = true;
+            return files;
+        }
+        is.close();
     }
-
+    files[0].hover = true;
     return files;
 }
 
@@ -118,16 +128,18 @@ void refreshframe(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT]) {
 }
 
 bool setup() {
-    stream.open("save.txt", fstream::in | fstream::out | fstream::app);
-    if (!stream.is_open()) {
-        stream << 1;
-    }
-    char lvl_str[3];
-    stream >> lvl_str;
-    
-    level = atoi(lvl_str);
-    stream.close();
+    if (!choseimportantlevel) {
+        stream.open("save.txt", fstream::in | fstream::out | fstream::app);
+        if (!stream.is_open()) {
+            stream << 1;
+        }
+        char lvl_str[3];
+        stream >> lvl_str;
 
+        level = atoi(lvl_str);
+        stream.close();
+    }
+    choseimportantlevel = false;
 
     get_level(map, level);
 
@@ -135,6 +147,8 @@ bool setup() {
     player.vx = 0;
     player.width = PLAYER_WIDTH;
     player.x = (WIDTH / 2) - (PLAYER_WIDTH / 2);
+
+    fill(&beated[0][0], &beated[0][0] + sizeof(beated), false);
 
     if (balls.size() > 0)
         balls.clear();
@@ -146,7 +160,7 @@ bool setup() {
     balls[0].vx = BALL_SPEED;
     balls[0].vy = BALL_SPEED;
     balls[0].x = WIDTH / 2;
-    balls[0].y = (HEIGHT / 2) + 10;
+    balls[0].y = (HEIGHT / 2) - 10;
 
     return true;
 }
@@ -170,14 +184,12 @@ void rendermenu(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT], SMALL_RECT* windowSiz
     WriteConsoleOutputA(wHnd, *consolebuffer, COORD{ WIDTH, HEIGHT }, COORD{ 0, 0 }, windowSize);
 }
 
-void renderlevel(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT], SMALL_RECT* windowSize, vector<TCHAR*> files) {
+void renderlevel(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT], SMALL_RECT* windowSize, vector<LEVEL> files) {
     refreshframe(consolebuffer);
-
-    //cout << (*files)[0][0];
     for (short i = 0; i < files.size(); i++) {
-        for (short j = 0; j < wcslen(files[i]); j++) {
-            (*consolebuffer)[short(WIDTH / 2 - 5 + j) + short(i + 5) * HEIGHT].Char.AsciiChar = files[i][j];
-            (*consolebuffer)[short(WIDTH / 2 - 5 + j) + short(i + 5) * HEIGHT].Attributes = FOREGROUND_RED;
+        for (short j = 0; j < files[i].text.size(); j++) {
+            (*consolebuffer)[short(WIDTH / 2 - 5 + j) + short(i * 2 + 5) * HEIGHT].Char.AsciiChar = files[i].text[j];
+            (*consolebuffer)[short(WIDTH / 2 - 5 + j) + short(i * 2 + 5) * HEIGHT].Attributes = files[i].hover ? FOREGROUND_BLUE | BACKGROUND_GREEN : FOREGROUND_GREEN | BACKGROUND_BLUE;
         }
 
     }
@@ -257,6 +269,22 @@ void input() {
                         choosedbtn = choosedbtn < sizeof(btns) / sizeof(MENUBTN) - 1 ? choosedbtn + 1 : 0;
                         btns[choosedbtn].hover = true;
                     }
+                    else if (eventBuffer[i].Event.KeyEvent.wVirtualKeyCode == VK_UP && changelevel) {
+                        levels[choosedbtnlevel].hover = false;
+                        choosedbtnlevel = choosedbtnlevel > 0 ? choosedbtnlevel - 1 : levels.size() - 1;
+                        levels[choosedbtnlevel].hover = true;
+                    }
+                    else if (eventBuffer[i].Event.KeyEvent.wVirtualKeyCode == VK_DOWN && changelevel) {
+                        levels[choosedbtnlevel].hover = false;
+                        choosedbtnlevel = choosedbtnlevel < levels.size() - 1 ? choosedbtnlevel + 1 : 0;
+                        levels[choosedbtnlevel].hover = true;
+                    }
+                    else if (eventBuffer[i].Event.KeyEvent.wVirtualKeyCode == VK_RETURN && changelevel) {
+                        level = choosedbtnlevel + 1;
+                        menu = false;
+                        changelevel = false;
+                        choseimportantlevel = true;
+                    }
                     else if (eventBuffer[i].Event.KeyEvent.wVirtualKeyCode == VK_RETURN && menu) {
                         switch (choosedbtn) {
                         case 0:
@@ -287,7 +315,7 @@ void logic(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT]) {
         else if ((balls[i].y + balls[i].vy) >= (HEIGHT - 1) || (balls[i].y + balls[i].vy) <= 0) {
             balls[i].vy = -balls[i].vy;
         }
-        else if ((balls[i].y + balls[i].vy) >= player.y && (((balls[i].x + balls[i].vx) >= player.x) && (balls[i].x + balls[i].vx) <= (player.x + player.width))) {
+        else if ((balls[i].y + 1) >= player.y && (((balls[i].x + balls[i].vx) >= player.x) && (balls[i].x + balls[i].vx) <= (player.x + player.width))) {
             balls[i].vy = -balls[i].vy;
         }
         else if (balls[i].y > player.y) {
@@ -302,7 +330,7 @@ void logic(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT]) {
         else if ((*consolebuffer)[short(balls[i].x + 1) + (short(balls[i].y + 1)) * HEIGHT].Char.AsciiChar == '#') {
             beated[(short(balls[i].y))][short(balls[i].x)] = true;
             balls[i].vy = -balls[i].vy;
-            if (modificators.size() < 50) {
+            if (modificators.size() < 50 && (rand() % 3 + 1) == 2) {
                 modificators.push_back({ balls[i].x, balls[i].y, 0.004, rand() % 3 + 1 });
             }
         }
@@ -314,7 +342,7 @@ void logic(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT]) {
     for (short i = 0; i < modificators.size(); i++) {
         if ((modificators[i].y + modificators[i].vy) >= player.y && ((modificators[i].x >= player.x) && (modificators[i].x <= (player.x + player.width)))) {
             short size = balls.size();
-            if (size + size * modificators[i].mod <= 99) {
+            if (size + (size * modificators[i].mod) <= 99) {
                 for (short j = size; j < size * modificators[i].mod; j++) {
                     balls.push_back(BALL { float(rand() % (WIDTH - 1) + 1), float(rand() % (HEIGHT - 10) + 10), BALL_SPEED, BALL_SPEED });
                 }
@@ -361,9 +389,9 @@ int _tmain(int argc, _TCHAR* argv[]) {
             input();
         }
         if (changelevel) {
-            vector<TCHAR*> files = getfiles();
+            levels = getfiles();
             while (changelevel && !exitstate) {
-                renderlevel(&consolebuffer, &windowSize, files);
+                renderlevel(&consolebuffer, &windowSize, levels);
                 input();
             }
         }
