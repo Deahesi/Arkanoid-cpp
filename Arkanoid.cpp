@@ -150,11 +150,9 @@ bool setup() {
 
     fill(&beated[0][0], &beated[0][0] + sizeof(beated), false);
 
-    if (balls.size() > 0)
-        balls.clear();
-
-    if (modificators.size() > 0)
-        modificators.clear();
+    
+    balls.clear();
+    modificators.clear();
 
     balls.push_back({});
     balls[0].vx = BALL_SPEED;
@@ -330,8 +328,8 @@ void logic(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT]) {
         else if ((*consolebuffer)[short(balls[i].x + 1) + (short(balls[i].y + 1)) * HEIGHT].Char.AsciiChar == '#') {
             beated[(short(balls[i].y))][short(balls[i].x)] = true;
             balls[i].vy = -balls[i].vy;
-            if (modificators.size() < 50 && (rand() % 3 + 1) == 2) {
-                modificators.push_back({ balls[i].x, balls[i].y, 0.004, rand() % 3 + 1 });
+            if (modificators.size() < 50 && 2 == 2) {
+                modificators.push_back({ balls[i].x, balls[i].y, 0.004, rand() % 3 + 2 });
             }
         }
 
@@ -344,7 +342,7 @@ void logic(CHAR_INFO(*consolebuffer)[WIDTH * HEIGHT]) {
             short size = balls.size();
             if (size + (size * modificators[i].mod) <= 99) {
                 for (short j = size; j < size * modificators[i].mod; j++) {
-                    balls.push_back(BALL { float(rand() % (WIDTH - 1) + 1), float(rand() % (HEIGHT - 10) + 10), BALL_SPEED, BALL_SPEED });
+                    balls.push_back({ float(rand() % (WIDTH - 1) + 1), float(rand() % (HEIGHT - 15) + 10), BALL_SPEED, BALL_SPEED });
                 }
             }
         }
